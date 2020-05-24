@@ -8,13 +8,6 @@ from src.socks import receive, send, PORT, send_certificate
 
 USERNAME="server1"
 
-def print_banner():
-    """Prints the entry banner."""
-    print_green("/////////////////////")
-    print_green("// s l y t h e r ////")
-    print_green("////// s e r v e r //")
-    print_green("/////////////////////")
-
 
 def get_contact_id(ip, contacts):
     """
@@ -44,17 +37,22 @@ def handle_client(sock, addr, public, private):
         private: The private key of this user.
     """
     try:
-        print(" > Performing key exchange...")
+        
         
         received_msg = receive(sock)
         
         client_username = received_msg[:7].decode()
         client_public = RSA.import_key(received_msg[7:])
+        
+        print_yellow(f"* New connection: {client_username}")
+        
+        print(" > Performing key exchange...")
+        
         print(f"    : Received public key from {client_username}")
 
 
         # send(sock, public.export_key())
-        print(f"    : Sent public key to {client_username}")
+        print(f"    : Sent public key to >{client_username}<")
         
         send_certificate(sock=sock, username=client_username, public=public, client_public=client_public, private=private)
 
@@ -75,7 +73,8 @@ def handle_client(sock, addr, public, private):
         
 
 if __name__ == "__main__":
-    print_banner()
+
+    print_banner("ServerChat ON")
     # Load keys
     public, private = login(username=USERNAME)
 

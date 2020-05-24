@@ -55,8 +55,10 @@ def start_and_do_handshake(public, private, certificate, server_public):
                     listen_from_socket.bind(server_addr)
                     listen_from_socket.listen(5)
                     
-                    from_socket, _ = listen_from_socket.accept()
-                    
+                    from_socket, _ = listen_from_socket.accept()                 
+                    print_yellow("You are all set for the messaging...")
+                    print_yellow("-------------------------------------")
+
                     while(True):
                         
                         socket_list = [sys.stdin, from_socket]
@@ -102,7 +104,6 @@ def wait_and_do_handshake(public, private, certificate, server_public):
 
 
             # Acceptance loop
-            print("Listening for connections...")
             from_socket, _ = listen_from_socket.accept()
             hello_message, client1_public, client1_cert = receive_handshake_message_with_cert(connection=from_socket, public=public, private=private)
             client1_public = RSA.import_key(client1_public)
@@ -118,6 +119,8 @@ def wait_and_do_handshake(public, private, certificate, server_public):
                 
                 
             if(nonce_found):
+                
+                
                 send_ack_message(connection=from_socket)
                 enc_master_secret = receive_encrypted_master_secret(connection=from_socket)
                 master_secret = decrypt_rsa(message=enc_master_secret, key=private)
@@ -130,6 +133,8 @@ def wait_and_do_handshake(public, private, certificate, server_public):
 
                 with socket.create_connection(listen_cl1_addr, 15) as to_socket:
                     
+                    print_yellow("You are all set for the messaging...")
+                    print_yellow("-------------------------------------")
                     while(True):
                         
                         socket_list = [sys.stdin, from_socket]
