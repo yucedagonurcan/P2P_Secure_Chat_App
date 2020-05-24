@@ -5,6 +5,21 @@
 
 > **Onur Can Yücedağ - 150116825**
 
+- [CSE 4057 Programming Assignment Report](#cse-4057-programming-assignment-report)
+  - [Flow Diagram](#flow-diagram)
+  - [Application of Security Features](#application-of-security-features)
+    - [Public Key Certification:](#public-key-certification)
+    - [Handshaking:](#handshaking)
+    - [Key Generation:](#key-generation)
+    - [Message Encryption:](#message-encryption)
+    - [Integrity Check:](#integrity-check)
+  - [Development Process](#development-process)
+  - [Running the Code](#running-the-code)
+    - [Prerequisites](#prerequisites)
+    - [Execuiton Order](#execuiton-order)
+    - [Execution](#execution)
+  - [Demo](#demo)
+
 
 *The project is an encrypted peer-to-peer messaging platform written in Python. The project uses the `pycryptodome` library for encryption needs and `select` library for concurency.*
 
