@@ -23,10 +23,10 @@ def print_red(msg):
     print("{0}{1}{2}".format(COLORS["red"], msg, COLORS["endc"]))
 
 
-def print_banner():
+def print_banner(message):
     """Prints the slyther entry banner."""
     print_green("///////////////////")
-    print_green("// s l y t h e r //")
+    print_green(f"// {message} //")
     print_green("///////////////////")
 
 
