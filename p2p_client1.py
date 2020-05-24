@@ -18,7 +18,7 @@ class Client:
 
     def run(self):
         try:
-            # Sertifika = Username + client_publicKey + rsa_sign(server_privateKey, client_publicKey)
+
             self.certificate, server_public = socks.get_certificate_from_server(self.username, self.public, self.private)
             
             socks.start_and_do_handshake(public=self.public,
