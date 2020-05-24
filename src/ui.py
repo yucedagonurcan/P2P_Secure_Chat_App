@@ -1,7 +1,3 @@
-from getpass import getpass
-import socket
-
-
 COLORS = {"green" : "\33[92m",
           "red"   : "\33[91m",
           "yellow" : "\33[93m",

@@ -8,6 +8,9 @@
 
 *The project is an encrypted peer-to-peer messaging platform written in Python. The project uses the `pycryptodome` library for encryption needs and `select` library for concurency.*
 
+## Flow Diagram
+
+![](FlowDiagram.jpg)
 
 ## Application of Security Features
 
