@@ -22,33 +22,68 @@ SERVER_IP = "localhost"
 
 def start_and_do_handshake(public, private, certificate, server_public):
     
+    # We will connect client2 from client1.
     contact_addr = (SERVER_IP, CLIENT2_PORT)
 
     with socket.create_connection(contact_addr, 15) as to_socket:
         
+        # Send the certificate of client1 to client2.
+        # Also send public key and 'Hello' message as well.
         send_handshake_message_with_cert(connection=to_socket,
-                                     msg="Hello",
-                                     public=public,
-                                     certificate=certificate)
+                                        msg="Hello",
+                                        public=public,
+                                        certificate=certificate)
         
+        # Receive the certificate from client2.
+        # Also receive client2 public key and it's generated nonce integer.
         nonce, client2_public, client2_certificate = receive_handshake_with_nonce(connection=to_socket,
                                                                 public=public,
                                                                 private=private, certificate=certificate)
+        
+        # We get the client2 public key as string, so we create RSA object from it.
         client2_public = RSA.import_key(client2_public)
+        
+        # Certificate has Server public key, client2 name and client2 signature so we need to parse it to get them. 
         client2_name, server_public, client2_signature = parse_certificate(client2_certificate)
         
+        # Sign the nonce message with client1's private key and send it to the client2.
         send_handshake_message_with_nonce_encrypted(connection=to_socket, private=private, nonce=nonce)
+        
+        # Wait for ack message to be received.
         ack_received = receive_ack_message(connection=to_socket)
         
+        # If ack is received okay.
         if(ack_received):
+            
+            # Master Secret = (16 byte AES key) + (16 byte Initialization Vector)
             master_secret = generate_master_key()
 
+            # Encrypt Master Secret with client2's public key.
             encrypted_master_secret = encrypt_pubkey_with_master_secret(master_secret=master_secret, public=client2_public)
+            
+            # Send encrypted master secret to the client2.
             send_ecrypted_master_secret(connection=to_socket, enc_master_key=encrypted_master_secret)
+            
+            # First 16 byte is AES Key.
             aes_key = master_secret[:16]
+            
+            # Last 16 byte is Initialization Vector.
             init_vec = master_secret[16:]
             
             try:
+                '''
+                - We are ready for messaging, for client1 to be receive message we will open a second socket in client1
+                and let the client2 to connect it.
+                
+                - We will also use 'select' library to implement concurency:
+                    - We will have two different buffers:
+                        - from_socket: client2's send socket, it will use this socket to send message to client1.
+                        - sys.stdin: If we press < enter > we need to listen it because it means client1 wants to send a message to client2.
+                    - If any of these buffers full with input, we will take action: 
+                        - Send a message to client2.
+                        - Receive from client2.
+                ''' 
+                
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listen_from_socket:
                     server_addr = (SERVER_IP, CLIENT1_PORT)
                     listen_from_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -61,31 +96,54 @@ def start_and_do_handshake(public, private, certificate, server_public):
 
                     while(True):
                         
+                        # Define the buffers.
                         socket_list = [sys.stdin, from_socket]
                         
+                        # Create a selector object.
                         read_from_socket, _, _ = select.select(socket_list, [], [])
                         
+                        # Check select objects:
                         for cur_sock in read_from_socket:
                             
+                            # If any incoming message is exist in 'from_socket'
                             if cur_sock == from_socket:
                                 
+                                # Receive: Hashed Message + AES Encrypted Message
                                 aes_encrypted_and_hashed_message = receive_aes_encrypted_and_hashed_msg(connection=cur_sock)
-                                hashed_message, aes_encrypted_message = aes_encrypted_and_hashed_message.split("marmara".encode())
-
                                 
+                                # We will use 'marmara' string as splitter for these two different message strings: Hashed Message + AES Encrypted Message
+                                hashed_message, aes_encrypted_message = aes_encrypted_and_hashed_message.split("marmara".encode())
+                                
+                                # Decrypt the aes_encrypted_message with IV and AES Key.
+                                # We will pad the string to be 16 byte in function using 'pad' function                               
                                 incoming_message_raw = decrypt_aes_with_iv(message=aes_encrypted_message, key=aes_key, iv=init_vec)
+                                
+                                # We need to unpad and decode the incoming message to be get as a text using 'unpad' function.
                                 incoming_message = process_incoming_message(incoming_message_raw)
                                 
+                                # Check the message integrity by:
+                                #   - HMAC(AES_Key, incoming_message) ?= hashed_message
                                 if(check_message_integrity(raw_message=incoming_message.encode(), aes_key=aes_key, hashed_message=hashed_message)):
-                                
+                                    
+                                    # If it is okay, print the incoming message as green. 
                                     print_green(f"> {client2_name}:= {incoming_message}")
-                                                                
+                            
+                            # If we want to send a message to the client2                                
                             else:
                                 
+                                # Process input message, make it English.
                                 message = process_input_message(sys.stdin.readline())
+                                
+                                # Hash the message with HMAC.
                                 hashed_message = encrypt_hmac(message=message.encode(), key=aes_key)
+                                
+                                # Encrypt the message with AES Key and Initialization Vector.
                                 aes_encrypted_message = encrypt_aes_with_iv(message=message, key=aes_key, iv=init_vec)
+                                
+                                # Send: Hashed Message + AES Encrypted Message
                                 send_aes_encrypted_and_hashed_msg(connection=to_socket, aes_encrypted_and_hashed_message=hashed_message + "marmara".encode() + aes_encrypted_message )
+                                
+                                # Print the message as yellow.
                                 print_yellow(f"> client1:= {message}")
                                 sys.stdout.flush()
                                 
@@ -95,6 +153,7 @@ def start_and_do_handshake(public, private, certificate, server_public):
 
 def wait_and_do_handshake(public, private, certificate, server_public):
     
+    # Open a socket in client2 that can be connected from client1.
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listen_from_socket:
             server_addr = (SERVER_IP, CLIENT2_PORT)
@@ -103,32 +162,51 @@ def wait_and_do_handshake(public, private, certificate, server_public):
             listen_from_socket.listen(5)
 
 
-            # Acceptance loop
+            # Accept the incoming connection request from client1
             from_socket, _ = listen_from_socket.accept()
+            
+            # Receive 'Hello' message from client1 with client1's public key and client1 certificate
             hello_message, client1_public, client1_cert = receive_handshake_message_with_cert(connection=from_socket, public=public, private=private)
+            
+            # We get the client1 public key as string, so we create RSA object from it.
             client1_public = RSA.import_key(client1_public)
+            
+            # Certificate has Server public key, client1 name and client1 signature so we need to parse it to get them. 
             client1_name, server_public, client1_signature = parse_certificate(client1_cert)
             
+            # Generate a nonce integer between 0-9
             nonce = str(random.randint(0,9))
             
+            # Send the nonce with client2's certificate as well as client2 public key.
             send_handshake_message_with_cert(connection=from_socket, msg=nonce, public=public,
                                             certificate=certificate)
             
+            # Receive the nonce message with signed by client2's public key.
             encrypted_nonce_msg = receive_handshake_message_with_nonce_encrypted(from_socket, nonce)
+            
+            # Verify the signed nonce message with client1's public key.
             nonce_found = verify(nonce.encode(), encrypted_nonce_msg, client1_public) 
                 
-                
+            # If we successfully verified the nonce message.
             if(nonce_found):
                 
-                
+                # Send the ack message to client1.
                 send_ack_message(connection=from_socket)
-                enc_master_secret = receive_encrypted_master_secret(connection=from_socket)
-                master_secret = decrypt_rsa(message=enc_master_secret, key=private)
                 
+                # Receive Master Secret from client1: (16 byte AES key) + (16 byte Initialization Vector)
+                enc_master_secret = receive_encrypted_master_secret(connection=from_socket)
+                
+                # Decrypt the encrypted master secret with client2's private key to get master secret.
+                master_secret = decrypt_rsa(message=enc_master_secret, key=private)
+
+                # First 16 byte is AES Key.
                 aes_key = master_secret[:16]
+
+                # Last 16 byte is Initialization Vector.
                 init_vec = master_secret[16:]
                 
                 
+                # Connect the newly created socket of client1 to send message to her.
                 listen_cl1_addr = (SERVER_IP, CLIENT1_PORT)
 
                 with socket.create_connection(listen_cl1_addr, 15) as to_socket:
@@ -137,30 +215,52 @@ def wait_and_do_handshake(public, private, certificate, server_public):
                     print_yellow("-------------------------------------")
                     while(True):
                         
+                        # Define the buffers.
                         socket_list = [sys.stdin, from_socket]
                         
+                        # Create a selector object.
                         read_from_socket, _, _ = select.select(socket_list, [], [])
                         
+                        # Check select objects:
                         for cur_sock in read_from_socket:
                             
+                            # If any incoming message is exist in 'from_socket'
                             if cur_sock == from_socket:
                                 
+                                # Receive: Hashed Message + AES Encrypted Message
                                 aes_encrypted_and_hashed_message = receive_aes_encrypted_and_hashed_msg(connection=cur_sock)
-                                hashed_message, aes_encrypted_message = aes_encrypted_and_hashed_message.split("marmara".encode())
                                 
+                                # We will use 'marmara' string as splitter for these two different message strings: Hashed Message + AES Encrypted Message
+                                hashed_message, aes_encrypted_message = aes_encrypted_and_hashed_message.split("marmara".encode())
+
+                                # Decrypt the aes_encrypted_message with IV and AES Key.
+                                # We will pad the string to be 16 byte in function using 'pad' function                               
                                 incoming_message_raw = decrypt_aes_with_iv(message=aes_encrypted_message, key=aes_key, iv=init_vec)
+                                
+                                # We need to unpad and decode the incoming message to be get as a text using 'unpad' function.
                                 incoming_message = process_incoming_message(incoming_message_raw)
                                 
+                                # Check the message integrity by:
+                                #   - HMAC(AES_Key, incoming_message) ?= hashed_message
                                 if(check_message_integrity(raw_message=incoming_message.encode(), aes_key=aes_key, hashed_message=hashed_message)):
-                                
+                                    
+                                    # If it is okay, print the incoming message as green. 
                                     print_green(f"> {client1_name}:= {incoming_message}")
                                                                 
                             else:
-                                
+                                # Process input message, make it English.
                                 message = process_input_message(sys.stdin.readline())
+                                
+                                # Hash the message with HMAC.
                                 hashed_message = encrypt_hmac(message=message.encode(), key=aes_key)
+                                
+                                # Encrypt the message with AES Key and Initialization Vector.
                                 aes_encrypted_message = encrypt_aes_with_iv(message=message, key=aes_key, iv=init_vec)
+                                
+                                # Send: Hashed Message + AES Encrypted Message
                                 send_aes_encrypted_and_hashed_msg(connection=to_socket, aes_encrypted_and_hashed_message=hashed_message + "marmara".encode() + aes_encrypted_message )
+
+                                # Print the message as yellow.
                                 print_yellow(f"> client2:= {message}")
                                 sys.stdout.flush()
     except OSError as e:
@@ -181,11 +281,13 @@ def parse_handshake_msg(handshake_with_msg):
     certificate = None
     client_public = None
     
+    # If first 5 character is 'Hello' we send the Hello message.
     if(decoded_handshake_with_msg[:5].decode() == 'Hello'):
         message = decoded_handshake_with_msg[:5].decode()
         client_public = decoded_handshake_with_msg[5:455]
         certificate = decoded_handshake_with_msg[455:]
         
+    # Else, we sent the nonce message.
     else:
         nonce = decoded_handshake_with_msg[:1].decode()
         client_public = decoded_handshake_with_msg[1:451]
@@ -195,7 +297,6 @@ def parse_handshake_msg(handshake_with_msg):
         
         
 def receive_handshake_message_with_cert(connection, public, private):
-    
     handshake_with_msg = receive(connection)
     nonce, message, client_public, client_certificate = parse_handshake_msg(handshake_with_msg)
     
@@ -207,15 +308,12 @@ def receive_handshake_message_with_cert(connection, public, private):
     
     
 def receive_handshake_with_nonce(connection, public, private, certificate):
-    
     nonce, client_public, client2_certificate = receive_handshake_message_with_cert(connection=connection,
-                                                 public=public,
-                                                 private=private)
+                                                public=public,
+                                                private=private)
     return nonce, client_public, client2_certificate
-      
-              
+
 def receive_handshake_message_with_nonce_encrypted(connection, nonce):
-    
     encrypted_nonce_msg = receive(connection)
     return encrypted_nonce_msg
 
@@ -225,19 +323,19 @@ def receive_ack_message(connection):
     return ack_msg == 'okay'.encode()
 
 def send_handshake_message_with_nonce_encrypted(connection, private, nonce):
-    
-    # Exchanging public keys
-    
     handshake_with_nonce_enc = sign(nonce.encode(), private)
     send(connection, handshake_with_nonce_enc)      
     pass  
 
 def send_ack_message(connection):
-    
     send(connection, 'okay'.encode())   
-             
+
 def generate_master_key():
-    
+    '''
+    Generate Master Secret with:
+        - Random 16 byte AES Key
+        - Random 16 byte Initialization Vector.
+    '''
     key = os.urandom(16)
     iv = os.urandom(16)
     return key + iv
@@ -254,12 +352,10 @@ def send_ecrypted_master_secret(connection, enc_master_key):
     send(connection, enc_master_key)
         
 def encrypt_pubkey_with_master_secret(master_secret, public):
-    
     encrypted_master_secret = encrypt_rsa(message=master_secret, key=public)
     return encrypted_master_secret
 
 def check_message_integrity(raw_message, aes_key, hashed_message):
-    
     regenerated_hashed_message = encrypt_hmac(message=raw_message, key=aes_key)
     return regenerated_hashed_message == hashed_message
     
@@ -295,8 +391,10 @@ def get_certificate_from_server(username, client_public, client_private):
         return certificate, server_public
 
 def parse_certificate(certificate):
+    '''
+    Certificate = Username + ClientPublicKey + Signature(ClientPublicKey, ServerPrivateKey)
+    '''
     decoded_cert = certificate
-    
     username = decoded_cert[:7].decode()
     public_key = RSA.import_key(decoded_cert[7:457])
     signature = decoded_cert[457:]
@@ -305,23 +403,26 @@ def parse_certificate(certificate):
 
 
 def check_certificate(certificate, server_public, client_public):
+    '''
+    Checks the certificate with verify function.
+    '''
     return verify(message=client_public.export_key(), signature=certificate, key=server_public)
 
 
 
 def send_certificate(sock, username, public, client_public, private):
     """
-    Sends an AES session key over hybrid RSA/AES through a socket.
-
-    Sends the RSA-encrypted session key, then sends the AES-encrypted signature 
-    of the key.
+    Sends the certificate to the clients that requested.
 
     Args:
         sock: The socket connected to the client.
-        session: The AES session key (in bytes) to send.
-        client_public: The client's public RSA key (as a Crypto.PublicKey.RSA.RsaKey).
-        private: The private RSA key of the sender (as a Crypto.PublicKey.RSA.RsaKey).
+        username: Client username that will be embedded into certificate.
+        public: Server's public key.
+        client_public: Client's public key
+        private: Server's private key.
     """
+    
+    # Certificate = Username + ClientPublicKey + Signature(ClientPublicKey, ServerPrivateKey)
     client_certificate = username.encode() + public.export_key() + sign(client_public.export_key(), private)
     send(sock, client_certificate)
     
@@ -329,16 +430,10 @@ def send_certificate(sock, username, public, client_public, private):
     
 def receive_certificate(sock):
     """
-    Sends an AES session key over hybrid RSA/AES through a socket.
-
-    Sends the RSA-encrypted session key, then sends the AES-encrypted signature 
-    of the key.
+    Receives the certificate from sock.
 
     Args:
         sock: The socket connected to the client.
-        session: The AES session key (in bytes) to send.
-        client_public: The client's public RSA key (as a Crypto.PublicKey.RSA.RsaKey).
-        private: The private RSA key of the sender (as a Crypto.PublicKey.RSA.RsaKey).
     """
     certificate = receive(sock)
     return certificate
@@ -375,8 +470,6 @@ def receive(sock):
 def recvall(sock, num_bytes):
     """
     Receives a size-prefixed message from the send() function above.
-    Thanks to Adam Rosenfield and Hedde van der Heide for the elegant solution.
-
     Args:
         sock: The socket to receive from.
 
@@ -433,18 +526,14 @@ pad = lambda s: s + (16 - len(s) % 16) * chr(16 - len(s) % 16)
 
 def encrypt_aes_with_iv(message, key, iv):
     """
-    Encrypts a message with the provided AES key.
+    Encrypts a message with the provided AES key and Initialization Vector.
 
     Args:
         message: The message (in bytes) to encrypt.
-        key: The AES key (in bytes) with which to decrypt.
-
+        key: The AES key (in bytes) with which to encrypt.
+        iv: Initialization Vector for using in encryption.
     Returns:
-        The encrypted message in bytes, where the first 16 bytesare the nonce, 
-        the second 16 are the tag, and the rest are the ciphertext:
-
-             Nonce          Tag         Ciphertext
-        [-----16-----][-----16-----][-------n-------]
+        The encrypted message in bytes.
     """
     
     
@@ -455,14 +544,14 @@ def encrypt_aes_with_iv(message, key, iv):
 
 def decrypt_aes_with_iv(message, key, iv):
     """
-    Decrypts a message with the provided AES key.
+    Decrypts a message with the provided AES key and Initialization Vector.
 
     Args:
-        message: The message (in bytes, as formatted by encrypt_aes()) to decrypt.
+        message: The message (in bytes) to encrypt.
         key: The AES key (in bytes) with which to decrypt.
-
+        iv: Initialization Vector for using in decrypt.
     Returns:
-        The decrypted message in bytes.
+        The encrypted message in bytes.
     """
     
     aes_cipher = AES.new(key, AES.MODE_CBC, iv)

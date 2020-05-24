@@ -12,6 +12,7 @@ CLIENT2_PORT = 55000
 
 class Client:
     def __init__(self, public, private, username):
+        
         self.public = public
         self.private = private
         self.username= username
@@ -19,16 +20,20 @@ class Client:
     def run(self):
         try:
 
+            # Get user certificate from server.
             self.certificate, server_public = socks.get_certificate_from_server(self.username, self.public, self.private)
             
+            # Start doing handshake with client2.
             socks.start_and_do_handshake(public=self.public,
-                                         private=self.private,
-                                         certificate=self.certificate,
-                                         server_public=server_public)
+                                        private=self.private,
+                                        certificate=self.certificate,
+                                        server_public=server_public)
+            
         except KeyboardInterrupt:
             print_red(f"{self.username} quitting...")
 
 if __name__ == "__main__":
+    
     print_banner(message="ClientChat ON")
     public, private = login(USERNAME)
     
