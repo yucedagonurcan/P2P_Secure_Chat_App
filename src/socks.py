@@ -13,7 +13,6 @@ from Crypto.Hash import SHA256, HMAC
 from Crypto.Signature import pkcs1_15
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Random import get_random_bytes
-from src.fingerprints import verify_fingerprint
 
 PORT = 5300
 CLIENT1_PORT = 54000
