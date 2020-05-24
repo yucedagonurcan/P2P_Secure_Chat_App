@@ -24,7 +24,7 @@ def print_red(msg):
 
 
 def print_banner(message):
-    """Prints the slyther entry banner."""
+    """Prints the entry banner."""
     print_green("///////////////////")
     print_green(f"// {message} //")
     print_green("///////////////////")

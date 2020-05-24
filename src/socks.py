@@ -88,7 +88,7 @@ def start_and_do_handshake(public, private, certificate, server_public):
                                 sys.stdout.flush()
                                 
             except OSError as e:
-                    print_red("Error: Failed to start slyther-server: Port {} in use.".format(CLIENT2_PORT))
+                    print_red("Error: Failed to start chat-app: Port {} in use.".format(CLIENT2_PORT))
                     print_red(e)
 
 def wait_and_do_handshake(public, private, certificate, server_public):
@@ -159,7 +159,7 @@ def wait_and_do_handshake(public, private, certificate, server_public):
                                 print_yellow(f"> client2:= {message}")
                                 sys.stdout.flush()
     except OSError as e:
-        print_red("Error: Failed to start slyther-server: Port {} in use.".format(CLIENT2_PORT))
+        print_red("Error: Failed to start chat-app: Port {} in use.".format(CLIENT2_PORT))
         print_red(e)
         
         

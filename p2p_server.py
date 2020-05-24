@@ -90,13 +90,10 @@ if __name__ == "__main__":
             # Acceptance loop
             print("Listening for connections...")
             while True:
-                try:
-                    connection, addr = sock.accept()
-                    handle_client(connection, addr, public, private)
-                except KeyboardInterrupt:
-                    if confirm("\nAre you sure you'd like to close slyther-server? (Y/n) "):
-                       break 
+                connection, addr = sock.accept()
+                handle_client(connection, addr, public, private)
+
     except OSError:
-        print_red("Error: Failed to start slyther-server: Port {} in use.".format(PORT))
+        print_red("Error: Failed to start chat-app-server: Port {} in use.".format(PORT))
 
 

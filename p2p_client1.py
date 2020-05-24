@@ -33,5 +33,5 @@ if __name__ == "__main__":
     public, private = login(USERNAME)
     
     Client(public, private, USERNAME).run() 
-    print_red("Exiting slyther...")
+    print_red("Exiting chat app...")
 
