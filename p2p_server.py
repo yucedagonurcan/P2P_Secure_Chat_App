@@ -66,7 +66,7 @@ def handle_client(sock, addr, public, private):
         print_red("    : Error receiving message.")
         print(e)
     except OSError:
-        print_red("    : Connection lost. Message not recieved.")
+        print_red("    : Connection lost. Message not received.")
     finally:
         print(f" > Closing connection with {client_username}...\n")
         sock.close()
